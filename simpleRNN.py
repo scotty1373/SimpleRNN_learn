@@ -3,6 +3,7 @@ import tensorflow as tf
 import tensorflow.keras as keras
 from tensorflow.keras import datasets
 from tensorflow.keras import preprocessing
+import matplotlib.pyplot as plt
 import numpy as np
 
 batch_size = 64
@@ -31,6 +32,7 @@ print(f'x_test shape: {x_test.shape}')
 
 
 # 自定义网络层，从keras.Model继承
+# 自定义网络层init先定义需要各层的信息，
 class MyRNN(keras.Model):
     def __init__(self, unit):
         super(MyRNN, self).__init__()
@@ -44,9 +46,9 @@ class MyRNN(keras.Model):
                                                 word_embedding_size,
                                                 input_length=maxlen)
         # [None, 100, 80] -> [None, unit] -> [None] 维度变换如下
-        self.rnncell = keras.layers.SimpleRNNCell(units=unit, dropout=0.2)
-        self.rnncell1 = keras.layers.SimpleRNNCell(units=unit, dropout=0.2)
-        self.rnncell2 = keras.layers.SimpleRNNCell(units=unit, dropout=0.2)
+        self.rnncell = keras.layers.SimpleRNNCell(units=unit, dropout=0.1)
+        self.rnncell1 = keras.layers.SimpleRNNCell(units=unit, dropout=0.1)
+        self.rnncell2 = keras.layers.SimpleRNNCell(units=unit, dropout=0.1)
         self.fc = keras.layers.Dense(1)
 
     # 通过training配置来决定是train还是test，对于RNNCell中的dropout
@@ -56,29 +58,39 @@ class MyRNN(keras.Model):
         x = self.embedding(x)
         state0 = self.state0
         state1 = self.state1
-        state2 = self.state2
+        # state2 = self.state2
         # x输入的word长度为时间轴rnn返回传播次数
         for word_ in tf.unstack(x, axis=1):      # [None, 0, 80] -> [None, 100, 80] iter
             # keras.layers.SimpleRNNCell train和test逻辑不同，给出training做针对性处理
             out0, state0 = self.rnncell(word_, state0, training)
-            out1, state1 = self.rnncell1(out0, state1, training)      # 接上层rnn输出作为本层输入
-            out2, state2 = self.rnncell1(out1, state2, training)
-        x = self.fc(out2)
+            # out1, state1 = self.rnncell1(out0, state1, training)      # 接上层rnn输出作为本层输入
+            # out2, state2 = self.rnncell2(out1, state2, training)
+        x = self.fc(out0)
         prob = tf.sigmoid(x)
         return prob
 
 
 if __name__ == '__main__':
     unit = 64
-    epochs = 4
-    model = MyRNN(unit)
+    epochs = 50
+    # model = MyRNN(unit)
 
+    model = keras.models.Sequential()
+    model.add(MyRNN(unit))
     model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.001),
                   loss=keras.losses.binary_crossentropy,
                   metrics=['acc'])
-    model.fit(db_train, epochs=epochs, validation_data=db_test)
-    model.summary()
 
+    history = model.fit(db_train, epochs=epochs, validation_data=db_test)
+    model.build(input_shape=[None, 100])
+    model.summary()
+    loss, = plt.plot(range(len(history.history.get('loss'))), history.history.get('loss'), linestyle=':', color='C0')
+    acc, = plt.plot(range(len(history.history.get('acc'))), history.history.get('acc'))
+    val_loss, = plt.plot(range(len(history.history.get('val_loss'))), history.history.get('val_loss'), linestyle=':', color='C3')
+    val_acc, = plt.plot(range(len(history.history.get('val_acc'))), history.history.get('val_acc'), color='C3')
+    plt.legend([loss, acc, val_loss, val_acc], ['loss', 'acc', 'val_loss', 'val_acc'], loc='best')
+    plt.show()
+    np.zeros([100, 100])
 
 
 # def simple_rnn():
